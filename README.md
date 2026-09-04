@@ -112,6 +112,15 @@ bypass 率（`prefill_worker_idx is None` 判定）：
 
 bypass 语义：策略判定 bypass 时，请求不再走「prefill worker 做 prefill → 跨 worker KV 传输 → decode worker 接续」，而是直接在选定的 decode worker 上本地 prefill（`prefill_worker_idx = None`，零传输）。
 
+改动以 `conditional_disagg_replay.patch` 提供，基线是 Dynamo `v1.5.0-gemma-4-31b-dev.1`（commit `4645399`）。在官方源码根目录执行：
+
+```bash
+git apply --check conditional_disagg_replay.patch   # 预检能否干净应用
+git apply conditional_disagg_replay.patch            # 应用
+```
+
+应用后重新编译 `dynamo._core`（`maturin develop --release --features mocker-kvbm-offload`），离线回放即可启用条件分离策略。
+
 ## 复现
 
 在 WSL 里装好 Rust 工具链和 Python 环境，编译出 `dynamo._core`（`maturin develop --release --features mocker-kvbm-offload`），然后跑上面的脚本。DynaSim 是纯 CPU 仿真，不依赖 GPU；默认多项式性能模型对 batch 不敏感，绝对延迟不代表真实 A100，但静态 vs 动态的相对对比是自洽的。
