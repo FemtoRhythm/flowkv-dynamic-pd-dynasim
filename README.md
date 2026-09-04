@@ -9,9 +9,13 @@
 - 代价是动态 PD 的 ITL p99 偏高（prefill 抢占 decode），是下一步要优化的点。
 - 真实 trace 开环回放里，重载下动态 PD 相对静态 1:3 基线省 44.8% GPU 时间（等效利用率 +81.3%）。
 
-TTFT mean（8 卡，ms，越低越好）：
-
-![8 卡消融 TTFT 对比](figures/fig_ttft.png)
+<table>
+  <tr>
+    <td><img src="figures/fig_ttft.png" width="280"></td>
+    <td><img src="figures/fig_makespan.png" width="280"></td>
+    <td><img src="figures/fig_conditional.png" width="280"></td>
+  </tr>
+</table>
 
 ## 方法
 
