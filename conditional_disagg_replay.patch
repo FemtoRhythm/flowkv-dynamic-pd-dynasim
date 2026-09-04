@@ -1,0 +1,453 @@
+diff --git a/lib/mocker/src/replay/offline/components/engine.rs b/lib/mocker/src/replay/offline/components/engine.rs
+index 559d187..4ab7633 100644
+--- a/lib/mocker/src/replay/offline/components/engine.rs
++++ b/lib/mocker/src/replay/offline/components/engine.rs
+@@ -443,10 +443,30 @@ where
+         Some((usize::try_from(worker_id).ok()?, dp_rank))
+     }
+ 
++    /// 是否存在处于 active 状态的 worker 组。
+     pub(in crate::replay::offline) fn has_active_workers(&self) -> bool {
+         !self.active_group_ids().is_empty()
+     }
+ 
++    /// 每个 active worker 是否都持有 in-flight 任务（尚未排空）。
++    /// 用作 prefill 池的饱和信号，供 prefill_load / isl_or_load 条件分离策略使用。
++    pub(in crate::replay::offline) fn all_workers_have_work(&self) -> bool {
++        let active = self.active_group_ids();
++        if active.is_empty() {
++            return false;
++        }
++        active.into_iter().all(|worker_id| {
++            self.worker_groups
++                .get(worker_id)
++                .and_then(Option::as_ref)
++                .is_some_and(|rank_ids| {
++                    rank_ids
++                        .iter()
++                        .any(|&rank_id| !Self::required_worker(&self.workers, rank_id).is_drained())
++                })
++        })
++    }
++
+     /// Return the configured startup delay in milliseconds, if any.
+     pub(in crate::replay::offline) fn startup_time_ms(&self) -> Option<f64> {
+         self.args
+diff --git a/lib/mocker/src/replay/offline/disagg.rs b/lib/mocker/src/replay/offline/disagg.rs
+index 05da8cc..f79f19e 100644
+--- a/lib/mocker/src/replay/offline/disagg.rs
++++ b/lib/mocker/src/replay/offline/disagg.rs
+@@ -36,12 +36,14 @@ use super::state::DisaggRequestSnapshot;
+ use super::state::{DisaggPhase, DisaggRequestState};
+ use crate::common::handoff::{
+     HandoffAction, HandoffActionOutcome, HandoffCompletion, HandoffFact, HandoffId, HandoffOrder,
+-    IssuedHandoffAction, NormalizedHandoffConformance, NormalizedHandoffEvent,
++    HandoffTransferTiming, IssuedHandoffAction, NormalizedHandoffConformance, NormalizedHandoffEvent,
+     NormalizedStoredTiming,
+ };
+ #[cfg(test)]
+ use crate::common::protocols::ForwardPassSnapshot;
+-use crate::common::protocols::{DirectRequest, EngineType, MockEngineArgs, OutputSignal};
++use crate::common::protocols::{
++    DirectRequest, EngineType, KvTransferTimingMode, MockEngineArgs, OutputSignal,
++};
+ use crate::loadgen::{ReplayRequestHashes, ReplayRequestPayload, WorkloadDriver};
+ #[cfg(test)]
+ use crate::replay::ReplayRouterMode;
+@@ -50,6 +52,58 @@ use crate::scheduler::{
+     AdmissionEvent, SchedulerCommand, SchedulerCommandResult, SchedulerLifecycleEvent,
+ };
+ 
++/// Local mirror of the production `ConditionalDisaggPolicyKind`. The offline
++/// core must not reference the KV-router crate directly (enforced by the
++/// extension firewall); the extension layer converts the real policy into this
++/// copy before handing it to the runtime.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub(in crate::replay) enum ConditionalDisaggPolicyKind {
++    IslBounding,
++    PrefillLoad,
++    IslOrLoad,
++}
++
++/// Subset of `KvRouterConfig` needed to drive conditional-disagg bypass in the
++/// offline replay. Kept small and `Copy` so the runtime can carry it cheaply.
++#[derive(Debug, Clone, Copy)]
++pub(in crate::replay) struct ConditionalDisaggReplayConfig {
++    pub(in crate::replay) policy: ConditionalDisaggPolicyKind,
++    pub(in crate::replay) eff_isl_threshold: usize,
++    pub(in crate::replay) eff_isl_ratio_threshold: f64,
++}
++
++impl ConditionalDisaggReplayConfig {
++    /// Synchronous mirror of the async `ConditionalDisaggPolicy` decision, so
++    /// the offline replay can evaluate bypass without an async runtime.
++    pub(in crate::replay) fn should_bypass(
++        self,
++        prompt_tokens: usize,
++        decode_chosen_cached_tokens: usize,
++        prefill_chosen_worker_busy: Option<bool>,
++    ) -> bool {
++        let eff_isl = prompt_tokens.saturating_sub(decode_chosen_cached_tokens.min(prompt_tokens));
++        let isl_bypass = eff_isl < self.eff_isl_threshold
++            && (eff_isl as f64 / prompt_tokens.max(1) as f64) < self.eff_isl_ratio_threshold;
++        let load_bypass = prefill_chosen_worker_busy.unwrap_or(false);
++        match self.policy {
++            ConditionalDisaggPolicyKind::IslBounding => isl_bypass,
++            ConditionalDisaggPolicyKind::PrefillLoad => load_bypass,
++            ConditionalDisaggPolicyKind::IslOrLoad => isl_bypass || load_bypass,
++        }
++    }
++}
++
++/// A `HandoffTransferTiming` that yields zero transfer delay: no bytes and no
++/// bandwidth are configured, so `delay_ms` resolves to `None` → `0.0`.
++fn zero_transfer_timing() -> HandoffTransferTiming {
++    HandoffTransferTiming {
++        mode: KvTransferTimingMode::FullPrompt,
++        full_prompt_tokens: 0,
++        kv_bytes_per_token: None,
++        bandwidth_gb_s: None,
++    }
++}
++
+ #[cfg(test)]
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub(crate) enum DisaggTransition {
+@@ -497,9 +551,10 @@ impl DisaggFlowState {
+         &mut self,
+         placement: Placement,
+         collector: &mut TraceCollector,
+-    ) -> Result<(Uuid, usize, IssuedHandoffAction)> {
++    ) -> Result<(Uuid, usize, usize, IssuedHandoffAction)> {
+         let uuid = placement.request_id;
+         let worker_idx = placement.scheduler_id;
++        let overlap_tokens = placement.reported_overlap_tokens;
+         self.record_decode_placement(placement, collector)?;
+         if self.state(uuid)?.phase != DisaggPhase::AwaitingDestination {
+             bail!("offline disagg replay expected destination-waiting request for {uuid}");
+@@ -509,7 +564,7 @@ impl DisaggFlowState {
+             .pending_destination_action
+             .take()
+             .ok_or_else(|| anyhow!("missing coordinator destination action for {uuid}"))?;
+-        Ok((uuid, worker_idx, action))
++        Ok((uuid, worker_idx, overlap_tokens, action))
+     }
+ 
+     fn uuid_for_handoff(&self, handoff_id: HandoffId) -> Result<Uuid> {
+@@ -912,6 +967,9 @@ where
+     /// above. Only the planner consumes them, so the plain `run()` path leaves this
+     /// `false`.
+     collect_fpm: bool,
++    /// Conditional-disagg bypass configuration. `None` disables bypass (static
++    /// disagg with remote prefill + cross-worker KV transfer).
++    conditional_disagg: Option<ConditionalDisaggReplayConfig>,
+ }
+ 
+ impl DisaggRuntimeImpl<PoolRoundRobinPlacement<()>, NoEngineEvents, NoReplayMetadata> {
+@@ -926,6 +984,7 @@ impl DisaggRuntimeImpl<PoolRoundRobinPlacement<()>, NoEngineEvents, NoReplayMeta
+             false,
+             false,
+             false,
++            None,
+             |_, topology| Ok(PoolRoundRobinPlacement::new(topology)),
+             |_, topology| Ok(PoolRoundRobinPlacement::new(topology)),
+         )
+@@ -942,6 +1001,7 @@ impl DisaggRuntimeImpl<PoolRoundRobinPlacement<()>, NoEngineEvents, NoReplayMeta
+             false,
+             false,
+             false,
++            None,
+             |_, topology| Ok(PoolRoundRobinPlacement::new(topology)),
+             |_, topology| Ok(PoolRoundRobinPlacement::new(topology)),
+         )
+@@ -962,6 +1022,7 @@ where
+         prefill_capture_raw: bool,
+         decode_capture_raw: bool,
+         capture_conformance: bool,
++        conditional_disagg: Option<ConditionalDisaggReplayConfig>,
+         create_prefill_placement: impl FnOnce(
+             &MockEngineArgs,
+             Vec<WorkerTopology>,
+@@ -971,7 +1032,7 @@ where
+             Vec<WorkerTopology>,
+         ) -> Result<PlacementPolicyImpl>,
+     ) -> Result<Self> {
+-        let handoff_order = match (
++        let engine_handoff_order = match (
+             config.prefill_args.engine_type,
+             config.decode_args.engine_type,
+         ) {
+@@ -982,6 +1043,12 @@ where
+             }
+             _ => bail!("offline disaggregated replay requires matching backend engine types"),
+         };
++        // Conditional disagg routes decode-first: the bypass decision needs the
++        // chosen decode worker's prefix-cache hit before prefill can be placed.
++        let handoff_order = match conditional_disagg {
++            Some(_) => HandoffOrder::DestinationFirst,
++            None => engine_handoff_order,
++        };
+         let progress = ReplayProgress::new(
+             CoreAdmissionSource::total_requests(&admission),
+             "offline disagg replay",
+@@ -1049,6 +1116,7 @@ where
+             max_sim_time_ms: None,
+             scaling_policy: None,
+             collect_fpm: false,
++            conditional_disagg,
+         })
+     }
+ 
+@@ -1262,15 +1330,21 @@ where
+ 
+     fn dispatch_decode_placements(&mut self, placements: Vec<Placement>) -> Result<()> {
+         for placement in placements {
+-            let (uuid, worker_idx, action) = self
++            let (uuid, worker_idx, overlap_tokens, action) = self
+                 .flow
+                 .take_decode_placement(placement, &mut self.collector)?;
++            self.state_mut(uuid)?.set_decode_cached_tokens(overlap_tokens);
+             self.reserve_destination(uuid, worker_idx, action)?;
+         }
+         Ok(())
+     }
+ 
+     fn route_prefill(&mut self, uuid: Uuid, action: IssuedHandoffAction) -> Result<()> {
++        let bypass = self.evaluate_bypass(uuid)?;
++        self.state_mut(uuid)?.set_bypass_remote_prefill(bypass);
++        if bypass {
++            return self.route_local_prefill(uuid, action);
++        }
+         self.state_mut(uuid)?.phase = DisaggPhase::QueuedPrefill;
+         let metadata =
+             Metadata::from_hashes(self.state_mut(uuid)?.take_replay_hashes()).for_prefill();
+@@ -1297,6 +1371,46 @@ where
+         Ok(())
+     }
+ 
++    /// 条件分离 bypass：请求直接在已选定的 decode worker 上本地执行 prefill。
++    /// 没有远端 prefill，也没有跨 worker KV 传输，因此 coordinator 直接越过
++    /// 远端 `SubmitPrefill`，进入零长度传输并激活 decode。
++    fn route_local_prefill(&mut self, uuid: Uuid, action: IssuedHandoffAction) -> Result<()> {
++        self.state_mut(uuid)?.phase = DisaggPhase::RunningPrefill;
++        self.collector.on_source_held(uuid, self.now_ms);
++        self.acknowledge_action(uuid, action, HandoffActionOutcome::Submitted)?;
++        let handoff_id = self.state(uuid)?.handoff_id;
++        self.apply_handoff_fact(
++            uuid,
++            HandoffFact::SourceHeld {
++                handoff_id,
++                transfer_timing: zero_transfer_timing(),
++            },
++        )?;
++        Ok(())
++    }
++
++    /// Evaluate the conditional-disagg bypass decision for a request whose
++    /// destination has already been placed (decode worker + overlap known).
++    fn evaluate_bypass(&self, uuid: Uuid) -> Result<bool> {
++        let Some(config) = self.conditional_disagg else {
++            return Ok(false);
++        };
++        let prompt_tokens = self.state(uuid)?.input_length()?;
++        let decode_cached_tokens = self.state(uuid)?.decode_cached_tokens();
++        let prefill_busy = self.prefill_pool_busy();
++        Ok(config.should_bypass(prompt_tokens, decode_cached_tokens, prefill_busy))
++    }
++
++    /// Whether the prefill pool is currently saturated (every active prefill
++    /// worker holds in-flight work). `None`-free: used as the
++    /// `prefill_chosen_worker_busy` signal for `PrefillLoad`/`IslOrLoad`.
++    fn prefill_pool_busy(&self) -> Option<bool> {
++        if !self.prefill_engine.has_active_workers() {
++            return Some(false);
++        }
++        Some(self.prefill_engine.all_workers_have_work())
++    }
++
+     fn route_destination(&mut self, uuid: Uuid, action: IssuedHandoffAction) -> Result<()> {
+         self.state_mut(uuid)?.await_destination();
+         // TODO: Keep the destination side compact through decode routing and
+@@ -1318,6 +1432,8 @@ where
+             PlacementDecision::Immediate(placement) => {
+                 let routed = self.decode_placement.is_router();
+                 self.state_mut(uuid)?.destination_routed = routed;
++                self.state_mut(uuid)?
++                    .set_decode_cached_tokens(placement.reported_overlap_tokens);
+                 self.record_decode_placement(placement)?;
+                 self.reserve_destination(uuid, placement.scheduler_id, action)?;
+             }
+@@ -1450,6 +1566,21 @@ where
+                 )?;
+             }
+             HandoffAction::ReleaseSource { handoff_id } => {
++                if self.state(uuid)?.bypass_remote_prefill() {
++                    // bypass 请求没有创建远端 prefill source；本地 prefill
++                    // 已在 decode worker 上执行。释放动作视为 no-op 并继续。
++                    self.flow.record_source_release(uuid, &mut self.stats);
++                    self.flow.finish_source_release(
++                        uuid,
++                        issued,
++                        HandoffActionOutcome::Noop,
++                        Vec::new(),
++                        self.now_ms,
++                        &mut self.collector,
++                        &mut self.stats,
++                    )?;
++                    return Ok(ActionExecution::Applied);
++                }
+                 let worker_idx = self
+                     .state(uuid)?
+                     .prefill_worker_idx()
+diff --git a/lib/mocker/src/replay/offline/extensions/kv_events/mod.rs b/lib/mocker/src/replay/offline/extensions/kv_events/mod.rs
+index b6c0229..cf8230f 100644
+--- a/lib/mocker/src/replay/offline/extensions/kv_events/mod.rs
++++ b/lib/mocker/src/replay/offline/extensions/kv_events/mod.rs
+@@ -116,6 +116,8 @@ impl
+             false,
+             true,
+             true,
++            // conditional_disagg: kv_events 路径默认禁用条件分离（None）。
++            None,
+             |_, topology| Ok(PoolRoundRobinPlacement::new(topology)),
+             |_, topology| Ok(PoolRoundRobinPlacement::new(topology)),
+         )
+diff --git a/lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs b/lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs
+index 35f8a11..4b9b0f7 100644
+--- a/lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs
++++ b/lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs
+@@ -23,7 +23,9 @@ use crate::replay::offline::core::round_robin::PoolRoundRobinPlacement;
+ use crate::replay::offline::core::{EngineEventBatch, WorkerTopology};
+ #[cfg(test)]
+ use crate::replay::offline::core::{Placement, PlacementEffects, PlacementPolicy};
+-use crate::replay::offline::disagg::{DisaggRuntimeImpl, PoolPlacement};
++use crate::replay::offline::disagg::{
++    ConditionalDisaggPolicyKind, ConditionalDisaggReplayConfig, DisaggRuntimeImpl, PoolPlacement,
++};
+ use crate::replay::offline::extensions::kv_events::{RouterEventBatch, RouterEventObservation};
+ use crate::replay::{OfflineDisaggReplayConfig, ReplayPrefillLoadEstimator, ReplayRouterMode};
+ 
+@@ -300,6 +302,7 @@ where
+     where
+         PlacementPolicyImpl: ConfiguredPoolPlacement<Observation::Batch, Metadata>,
+     {
++        let conditional_disagg = conditional_disagg_config(router_config.as_ref());
+         let (prefill_router_config, decode_router_config) = match router_mode {
+             ReplayRouterMode::RoundRobin => (None, None),
+             ReplayRouterMode::KvRouter => (
+@@ -322,6 +325,7 @@ where
+             prefill_capture_kv,
+             false,
+             false,
++            conditional_disagg,
+             |args, topology| {
+                 PlacementPolicyImpl::create(
+                     args,
+@@ -377,3 +381,36 @@ pub(in crate::replay::offline) fn derive_decode_router_config(
+     config.router_prefill_load_model = RouterPrefillLoadModel::None;
+     config
+ }
++
++/// Build the synchronous conditional-disagg replay config from a
++/// `KvRouterConfig`. Returns `None` (bypass disabled) unless conditional
++/// disagg is explicitly enabled, matching the production policy gate.
++fn conditional_disagg_config(
++    router_config: Option<&KvRouterConfig>,
++) -> Option<ConditionalDisaggReplayConfig> {
++    let config = router_config?;
++    if !config.conditional_disagg_enabled {
++        return None;
++    }
++    Some(ConditionalDisaggReplayConfig {
++        policy: replay_policy(config.conditional_disagg_policy),
++        eff_isl_threshold: config.conditional_disagg_eff_isl_threshold,
++        eff_isl_ratio_threshold: config.conditional_disagg_eff_isl_ratio_threshold,
++    })
++}
++
++/// 将生产的 `dynamo_kv_router::ConditionalDisaggPolicyKind` 转换为
++/// 离线核心的防火墙安全本地镜像。
++fn replay_policy(policy: dynamo_kv_router::config::ConditionalDisaggPolicyKind) -> ConditionalDisaggPolicyKind {
++    match policy {
++        dynamo_kv_router::config::ConditionalDisaggPolicyKind::IslBounding => {
++            ConditionalDisaggPolicyKind::IslBounding
++        }
++        dynamo_kv_router::config::ConditionalDisaggPolicyKind::PrefillLoad => {
++            ConditionalDisaggPolicyKind::PrefillLoad
++        }
++        dynamo_kv_router::config::ConditionalDisaggPolicyKind::IslOrLoad => {
++            ConditionalDisaggPolicyKind::IslOrLoad
++        }
++    }
++}
+diff --git a/lib/mocker/src/replay/offline/state.rs b/lib/mocker/src/replay/offline/state.rs
+index dd63c64..cb3ee2d 100644
+--- a/lib/mocker/src/replay/offline/state.rs
++++ b/lib/mocker/src/replay/offline/state.rs
+@@ -90,8 +90,14 @@ pub(crate) struct DisaggRequestState {
+     replay_hashes: Option<ReplayRequestHashes>,
+     prefill_worker_idx: Option<usize>,
+     decode_worker_idx: Option<usize>,
++    /// Prefix-cache overlap reported by the decode-side placement, in tokens.
++    /// Used by conditional disagg to decide whether to skip remote prefill.
++    pub(in crate::replay::offline) decode_cached_tokens: usize,
+     pub(in crate::replay::offline) prefill_routed: bool,
+     pub(in crate::replay::offline) destination_routed: bool,
++    /// Whether conditional disagg chose to skip remote prefill and run the
++    /// prefill locally on the chosen decode worker (no cross-worker KV transfer).
++    pub(in crate::replay::offline) bypass_remote_prefill: bool,
+     pub(in crate::replay::offline) pending_prefill_action: Option<IssuedHandoffAction>,
+     pub(in crate::replay::offline) pending_destination_action: Option<IssuedHandoffAction>,
+ }
+@@ -103,6 +109,7 @@ pub(crate) struct DisaggRequestSnapshot {
+     pub(crate) phase: DisaggPhase,
+     pub(crate) prefill_worker_idx: Option<usize>,
+     pub(crate) decode_worker_idx: Option<usize>,
++    pub(crate) bypass_remote_prefill: bool,
+ }
+ 
+ impl DisaggRequestState {
+@@ -131,8 +138,10 @@ impl DisaggRequestState {
+             replay_hashes,
+             prefill_worker_idx: None,
+             decode_worker_idx: None,
++            decode_cached_tokens: 0,
+             prefill_routed: false,
+             destination_routed: false,
++            bypass_remote_prefill: false,
+             pending_prefill_action: None,
+             pending_destination_action: None,
+         }
+@@ -213,6 +222,24 @@ impl DisaggRequestState {
+         self.decode_worker_idx
+     }
+ 
++    pub(crate) fn decode_cached_tokens(&self) -> usize {
++        self.decode_cached_tokens
++    }
++
++    pub(crate) fn set_decode_cached_tokens(&mut self, tokens: usize) {
++        self.decode_cached_tokens = tokens;
++    }
++
++    /// 该请求是否已判定为条件分离 bypass（跳过远端 prefill）。
++    pub(crate) fn bypass_remote_prefill(&self) -> bool {
++        self.bypass_remote_prefill
++    }
++
++    /// 记录该请求的条件分离 bypass 判定结果。
++    pub(crate) fn set_bypass_remote_prefill(&mut self, bypass: bool) {
++        self.bypass_remote_prefill = bypass;
++    }
++
+     pub(crate) fn transfer_pending(&mut self) {
+         self.phase = DisaggPhase::TransferPending;
+     }
+@@ -244,6 +271,7 @@ impl DisaggRequestState {
+             phase: self.phase,
+             prefill_worker_idx: self.prefill_worker_idx,
+             decode_worker_idx: self.decode_worker_idx,
++            bypass_remote_prefill: self.bypass_remote_prefill,
+         }
+     }
+ }
