@@ -9,6 +9,15 @@
 - 代价是动态 PD 的 ITL p99 偏高（prefill 抢占 decode），是下一步要优化的点。
 - 真实 trace 开环回放里，重载下动态 PD 相对静态 1:3 基线省 44.8% GPU 时间（等效利用率 +81.3%）。
 
+TTFT mean（8 卡，ms，越低越好）：
+
+```
+523.8  1:3  ████████████████
+184.9  1:1  ██████
+184.4  3:1  ██████
+158.9  agg  █████
+```
+
 ## 方法
 
 不直接改 Dynamo 源码，用 DynaSim（`python -m dynamo.replay`，Rust `lib/mocker` 驱动）在同一负载、同一总卡数下跑静态 PD 和动态 PD 对比。1 卡 = 1 worker（TP=1）。
