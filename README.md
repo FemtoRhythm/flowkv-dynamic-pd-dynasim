@@ -17,9 +17,9 @@ This work does not modify the Dynamo production runtime. Simulation uses DynaSim
 <div align="center">
 <table>
   <tr>
-    <td><img src="figures/fig_ttft.png" width="280"></td>
-    <td><img src="figures/fig_makespan.png" width="280"></td>
-    <td><img src="figures/fig_conditional.png" width="280"></td>
+    <td><img src="https://raw.githubusercontent.com/FemtoRhythm/flowkv-dynamic-pd-dynasim/main/figures/fig_ttft.png" width="280"></td>
+    <td><img src="https://raw.githubusercontent.com/FemtoRhythm/flowkv-dynamic-pd-dynasim/main/figures/fig_makespan.png" width="280"></td>
+    <td><img src="https://raw.githubusercontent.com/FemtoRhythm/flowkv-dynamic-pd-dynasim/main/figures/fig_conditional.png" width="280"></td>
   </tr>
 </table>
 </div>
