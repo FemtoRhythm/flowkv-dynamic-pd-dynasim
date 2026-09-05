@@ -32,21 +32,141 @@ Latency and throughput are measured under fixed request count and concurrency. L
 
 8 GPUs, 16000 requests, concurrency 256:
 
-| Config | TTFT mean | TTFT p99 | ITL mean | ITL p99 | E2E mean | E2E p99 | rps | Total tok/s | GPU-hours |
-|---|---|---|---|---|---|---|---|---|---|
-| Static 1:3 (2P+6D) | 523.8 | 574.2 | 6.6 | 6.6 | 1357.0 | 1408.2 | 187.4 | 119944 | 0.2 |
-| Static 1:1 (4P+4D) | 184.9 | 349.7 | 7.4 | 7.8 | 1127.9 | 1280.4 | 225.6 | 144380 | 0.2 |
-| Static 3:1 (6P+2D) | 184.4 | 204.8 | 9.2 | 9.8 | 1355.5 | 1374.0 | 187.5 | 119981 | 0.2 |
-| Dynamic (8 agg) | 158.9 | 175.5 | 8.3 | 39.1 | 1209.7 | 1215.8 | 210.5 | 134701 | 0.2 |
+<table width="100%">
+  <thead>
+    <tr>
+      <th>Config</th>
+      <th>TTFT mean</th>
+      <th>TTFT p99</th>
+      <th>ITL mean</th>
+      <th>ITL p99</th>
+      <th>E2E mean</th>
+      <th>E2E p99</th>
+      <th>rps</th>
+      <th>Total tok/s</th>
+      <th>GPU-hours</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Static 1:3 (2P+6D)</td>
+      <td>523.8</td>
+      <td>574.2</td>
+      <td>6.6</td>
+      <td>6.6</td>
+      <td>1357.0</td>
+      <td>1408.2</td>
+      <td>187.4</td>
+      <td>119944</td>
+      <td>0.2</td>
+    </tr>
+    <tr>
+      <td>Static 1:1 (4P+4D)</td>
+      <td>184.9</td>
+      <td>349.7</td>
+      <td>7.4</td>
+      <td>7.8</td>
+      <td>1127.9</td>
+      <td>1280.4</td>
+      <td>225.6</td>
+      <td>144380</td>
+      <td>0.2</td>
+    </tr>
+    <tr>
+      <td>Static 3:1 (6P+2D)</td>
+      <td>184.4</td>
+      <td>204.8</td>
+      <td>9.2</td>
+      <td>9.8</td>
+      <td>1355.5</td>
+      <td>1374.0</td>
+      <td>187.5</td>
+      <td>119981</td>
+      <td>0.2</td>
+    </tr>
+    <tr>
+      <td>Dynamic (8 agg)</td>
+      <td>158.9</td>
+      <td>175.5</td>
+      <td>8.3</td>
+      <td>39.1</td>
+      <td>1209.7</td>
+      <td>1215.8</td>
+      <td>210.5</td>
+      <td>134701</td>
+      <td>0.2</td>
+    </tr>
+  </tbody>
+</table>
 
 1024 GPUs, 1M requests, concurrency 32768:
 
-| Config | TTFT mean | TTFT p99 | ITL mean | ITL p99 | E2E mean | E2E p99 | rps | Total tok/s | GPU-hours |
-|---|---|---|---|---|---|---|---|---|---|
-| Static 1:3 (256P+768D) | 528.1 | 1024.7 | 6.6 | 6.6 | 1360.9 | 1857.0 | 23746 | 15197474 | 12.0 |
-| Static 1:1 (512P+512D) | 189.0 | 517.1 | 7.4 | 7.8 | 1131.2 | 1462.0 | 28592 | 18298543 | 9.9 |
-| Static 3:1 (768P+256D) | 186.5 | 348.9 | 9.2 | 9.8 | 1355.8 | 1527.6 | 23842 | 15258601 | 11.9 |
-| Dynamic (1024 agg) | 161.0 | 350.7 | 8.3 | 39.1 | 1209.3 | 1391.3 | 26801 | 17152776 | 10.6 |
+<table width="100%">
+  <thead>
+    <tr>
+      <th>Config</th>
+      <th>TTFT mean</th>
+      <th>TTFT p99</th>
+      <th>ITL mean</th>
+      <th>ITL p99</th>
+      <th>E2E mean</th>
+      <th>E2E p99</th>
+      <th>rps</th>
+      <th>Total tok/s</th>
+      <th>GPU-hours</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Static 1:3 (256P+768D)</td>
+      <td>528.1</td>
+      <td>1024.7</td>
+      <td>6.6</td>
+      <td>6.6</td>
+      <td>1360.9</td>
+      <td>1857.0</td>
+      <td>23746</td>
+      <td>15197474</td>
+      <td>12.0</td>
+    </tr>
+    <tr>
+      <td>Static 1:1 (512P+512D)</td>
+      <td>189.0</td>
+      <td>517.1</td>
+      <td>7.4</td>
+      <td>7.8</td>
+      <td>1131.2</td>
+      <td>1462.0</td>
+      <td>28592</td>
+      <td>18298543</td>
+      <td>9.9</td>
+    </tr>
+    <tr>
+      <td>Static 3:1 (768P+256D)</td>
+      <td>186.5</td>
+      <td>348.9</td>
+      <td>9.2</td>
+      <td>9.8</td>
+      <td>1355.8</td>
+      <td>1527.6</td>
+      <td>23842</td>
+      <td>15258601</td>
+      <td>11.9</td>
+    </tr>
+    <tr>
+      <td>Dynamic (1024 agg)</td>
+      <td>161.0</td>
+      <td>350.7</td>
+      <td>8.3</td>
+      <td>39.1</td>
+      <td>1209.3</td>
+      <td>1391.3</td>
+      <td>26801</td>
+      <td>17152776</td>
+      <td>10.6</td>
+    </tr>
+  </tbody>
+</table>
 
 ### 3.2 Real-Trace Open-Loop Replay
 
@@ -54,20 +174,80 @@ Closed-loop saturation fixes supply time as the product of worker count and dura
 
 Makespan (seconds):
 
-| Arrival intensity | Static 1:3 | Static 1:1 | Static 3:1 | Dynamic |
-|---|---|---|---|---|
-| 1× | 183.03 | 182.41 | 182.55 | 181.84 |
-| 2× | 102.01 | 94.27 | 102.40 | 94.18 |
-| 4× | 85.08 | 65.16 | 70.53 | 58.47 |
-| 8× | 86.81 | 62.57 | 74.26 | 47.89 |
+<table width="100%">
+  <thead>
+    <tr>
+      <th>Arrival intensity</th>
+      <th>Static 1:3</th>
+      <th>Static 1:1</th>
+      <th>Static 3:1</th>
+      <th>Dynamic</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1×</td>
+      <td>183.03</td>
+      <td>182.41</td>
+      <td>182.55</td>
+      <td>181.84</td>
+    </tr>
+    <tr>
+      <td>2×</td>
+      <td>102.01</td>
+      <td>94.27</td>
+      <td>102.40</td>
+      <td>94.18</td>
+    </tr>
+    <tr>
+      <td>4×</td>
+      <td>85.08</td>
+      <td>65.16</td>
+      <td>70.53</td>
+      <td>58.47</td>
+    </tr>
+    <tr>
+      <td>8×</td>
+      <td>86.81</td>
+      <td>62.57</td>
+      <td>74.26</td>
+      <td>47.89</td>
+    </tr>
+  </tbody>
+</table>
 
 Improvement of dynamic scheduling over static configurations at 8× intensity:
 
-| Comparison | Makespan reduction | GPU time saved | Utilization gain |
-|---|---|---|---|
-| vs 1:3 | 86.81 → 47.89s | 44.8% | +81.3% |
-| vs 1:1 | 62.57 → 47.89s | 23.5% | +30.7% |
-| vs 3:1 | 74.26 → 47.89s | 35.5% | +55.1% |
+<table width="100%">
+  <thead>
+    <tr>
+      <th>Comparison</th>
+      <th>Makespan reduction</th>
+      <th>GPU time saved</th>
+      <th>Utilization gain</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>vs 1:3</td>
+      <td>86.81 → 47.89s</td>
+      <td>44.8%</td>
+      <td>+81.3%</td>
+    </tr>
+    <tr>
+      <td>vs 1:1</td>
+      <td>62.57 → 47.89s</td>
+      <td>23.5%</td>
+      <td>+30.7%</td>
+    </tr>
+    <tr>
+      <td>vs 3:1</td>
+      <td>74.26 → 47.89s</td>
+      <td>35.5%</td>
+      <td>+55.1%</td>
+    </tr>
+  </tbody>
+</table>
 
 Differences are small under light load, while the advantage of dynamic scheduling grows monotonically with arrival intensity and exceeds the optimal static configuration for this workload.
 
@@ -77,21 +257,91 @@ The aggregated configuration is the ideal upper bound without KV transfer. Condi
 
 Makespan (seconds):
 
-| Config | 1× | 2× | 4× | 8× |
-|---|---|---|---|---|
-| static no KV | 183.03 | 102.01 | 85.08 | 86.81 |
-| static with KV | 183.04 | 102.11 | 85.55 | 89.00 |
-| isl_bounding | 182.55 | 103.58 | 87.92 | 87.39 |
-| prefill_load | 181.48 | 93.09 | 55.88 | 39.67 |
-| isl_or_load | 181.48 | 93.06 | 55.43 | 39.10 |
+<table width="100%">
+  <thead>
+    <tr>
+      <th>Config</th>
+      <th>1×</th>
+      <th>2×</th>
+      <th>4×</th>
+      <th>8×</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>static no KV</td>
+      <td>183.03</td>
+      <td>102.01</td>
+      <td>85.08</td>
+      <td>86.81</td>
+    </tr>
+    <tr>
+      <td>static with KV</td>
+      <td>183.04</td>
+      <td>102.11</td>
+      <td>85.55</td>
+      <td>89.00</td>
+    </tr>
+    <tr>
+      <td>isl_bounding</td>
+      <td>182.55</td>
+      <td>103.58</td>
+      <td>87.92</td>
+      <td>87.39</td>
+    </tr>
+    <tr>
+      <td>prefill_load</td>
+      <td>181.48</td>
+      <td>93.09</td>
+      <td>55.88</td>
+      <td>39.67</td>
+    </tr>
+    <tr>
+      <td>isl_or_load</td>
+      <td>181.48</td>
+      <td>93.06</td>
+      <td>55.43</td>
+      <td>39.10</td>
+    </tr>
+  </tbody>
+</table>
 
 Bypass rate (determined by `prefill_worker_idx is None`):
 
-| Policy | 1× | 2× | 4× | 8× |
-|---|---|---|---|---|
-| isl_bounding | 0% | 0% | 0% | 0% |
-| prefill_load | 88.2% | 87.2% | 87.7% | 90.2% |
-| isl_or_load | 88.2% | 87.3% | 88.2% | 88.1% |
+<table width="100%">
+  <thead>
+    <tr>
+      <th>Policy</th>
+      <th>1×</th>
+      <th>2×</th>
+      <th>4×</th>
+      <th>8×</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>isl_bounding</td>
+      <td>0%</td>
+      <td>0%</td>
+      <td>0%</td>
+      <td>0%</td>
+    </tr>
+    <tr>
+      <td>prefill_load</td>
+      <td>88.2%</td>
+      <td>87.2%</td>
+      <td>87.7%</td>
+      <td>90.2%</td>
+    </tr>
+    <tr>
+      <td>isl_or_load</td>
+      <td>88.2%</td>
+      <td>87.3%</td>
+      <td>88.2%</td>
+      <td>88.1%</td>
+    </tr>
+  </tbody>
+</table>
 
 ## 4 Discussion
 
@@ -119,26 +369,75 @@ DynaSim is a CPU-only simulation with no GPU dependency. The default polynomial 
 
 ### 6.2 Scripts
 
-| File | Purpose |
-|---|---|
-| run_ablation.py | Batch static and dynamic scheduling configurations |
-| run_trace_ablation.py | Real-trace open-loop replay |
-| run_conditional_disagg_ablation.py | Conditional disaggregation ablation |
-| verify_ablation.py | Reproducibility checks |
-| trace_inspect.py | Workload characterization |
-| plot_figures.py | Figure generation |
+<table width="100%">
+  <thead>
+    <tr>
+      <th>File</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>run_ablation.py</td>
+      <td>Batch static and dynamic scheduling configurations</td>
+    </tr>
+    <tr>
+      <td>run_trace_ablation.py</td>
+      <td>Real-trace open-loop replay</td>
+    </tr>
+    <tr>
+      <td>run_conditional_disagg_ablation.py</td>
+      <td>Conditional disaggregation ablation</td>
+    </tr>
+    <tr>
+      <td>verify_ablation.py</td>
+      <td>Reproducibility checks</td>
+    </tr>
+    <tr>
+      <td>trace_inspect.py</td>
+      <td>Workload characterization</td>
+    </tr>
+    <tr>
+      <td>plot_figures.py</td>
+      <td>Figure generation</td>
+    </tr>
+  </tbody>
+</table>
 
 ## 7 Source Changes
 
 Conditional disaggregation replay support only touches the simulation engine `lib/mocker`, leaving the production runtime unchanged.
 
-| File | Change |
-|---|---|
-| lib/mocker/src/replay/offline/components/engine.rs | Expose prefill pool saturation signal |
-| lib/mocker/src/replay/offline/state.rs | Add bypass state flag |
-| lib/mocker/src/replay/offline/disagg.rs | Conditional disaggregation decision and local prefill routing |
-| lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs | Replay config derivation and wiring |
-| lib/mocker/src/replay/offline/extensions/kv_events/mod.rs | Keep disabled by default |
+<table width="100%">
+  <thead>
+    <tr>
+      <th>File</th>
+      <th>Change</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>lib/mocker/src/replay/offline/components/engine.rs</td>
+      <td>Expose prefill pool saturation signal</td>
+    </tr>
+    <tr>
+      <td>lib/mocker/src/replay/offline/state.rs</td>
+      <td>Add bypass state flag</td>
+    </tr>
+    <tr>
+      <td>lib/mocker/src/replay/offline/disagg.rs</td>
+      <td>Conditional disaggregation decision and local prefill routing</td>
+    </tr>
+    <tr>
+      <td>lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs</td>
+      <td>Replay config derivation and wiring</td>
+    </tr>
+    <tr>
+      <td>lib/mocker/src/replay/offline/extensions/kv_events/mod.rs</td>
+      <td>Keep disabled by default</td>
+    </tr>
+  </tbody>
+</table>
 
 When a policy decides to bypass, the request skips the prefill-node compute, cross-node KV transfer, and decode-node handoff, instead performing local prefill on the chosen decode node with zero KV transfer.
 
