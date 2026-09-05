@@ -32,141 +32,21 @@
 
 8 卡，16000 请求，并发度 256：
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th>配置</th>
-      <th>TTFT mean</th>
-      <th>TTFT p99</th>
-      <th>ITL mean</th>
-      <th>ITL p99</th>
-      <th>E2E mean</th>
-      <th>E2E p99</th>
-      <th>rps</th>
-      <th>总 tok/s</th>
-      <th>GPU-hours</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>静态 1:3 (2P+6D)</td>
-      <td>523.8</td>
-      <td>574.2</td>
-      <td>6.6</td>
-      <td>6.6</td>
-      <td>1357.0</td>
-      <td>1408.2</td>
-      <td>187.4</td>
-      <td>119944</td>
-      <td>0.2</td>
-    </tr>
-    <tr>
-      <td>静态 1:1 (4P+4D)</td>
-      <td>184.9</td>
-      <td>349.7</td>
-      <td>7.4</td>
-      <td>7.8</td>
-      <td>1127.9</td>
-      <td>1280.4</td>
-      <td>225.6</td>
-      <td>144380</td>
-      <td>0.2</td>
-    </tr>
-    <tr>
-      <td>静态 3:1 (6P+2D)</td>
-      <td>184.4</td>
-      <td>204.8</td>
-      <td>9.2</td>
-      <td>9.8</td>
-      <td>1355.5</td>
-      <td>1374.0</td>
-      <td>187.5</td>
-      <td>119981</td>
-      <td>0.2</td>
-    </tr>
-    <tr>
-      <td>动态 (8 agg)</td>
-      <td>158.9</td>
-      <td>175.5</td>
-      <td>8.3</td>
-      <td>39.1</td>
-      <td>1209.7</td>
-      <td>1215.8</td>
-      <td>210.5</td>
-      <td>134701</td>
-      <td>0.2</td>
-    </tr>
-  </tbody>
-</table>
+| 配置 | TTFT mean | TTFT p99 | ITL mean | ITL p99 | E2E mean | E2E p99 | rps | 总 tok/s | GPU-hours |
+|---|---|---|---|---|---|---|---|---|---|
+| 静态 1:3 (2P+6D) | 523.8 | 574.2 | 6.6 | 6.6 | 1357.0 | 1408.2 | 187.4 | 119944 | 0.2 |
+| 静态 1:1 (4P+4D) | 184.9 | 349.7 | 7.4 | 7.8 | 1127.9 | 1280.4 | 225.6 | 144380 | 0.2 |
+| 静态 3:1 (6P+2D) | 184.4 | 204.8 | 9.2 | 9.8 | 1355.5 | 1374.0 | 187.5 | 119981 | 0.2 |
+| 动态 (8 agg) | 158.9 | 175.5 | 8.3 | 39.1 | 1209.7 | 1215.8 | 210.5 | 134701 | 0.2 |
 
 1024 卡，100 万请求，并发度 32768：
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th>配置</th>
-      <th>TTFT mean</th>
-      <th>TTFT p99</th>
-      <th>ITL mean</th>
-      <th>ITL p99</th>
-      <th>E2E mean</th>
-      <th>E2E p99</th>
-      <th>rps</th>
-      <th>总 tok/s</th>
-      <th>GPU-hours</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>静态 1:3 (256P+768D)</td>
-      <td>528.1</td>
-      <td>1024.7</td>
-      <td>6.6</td>
-      <td>6.6</td>
-      <td>1360.9</td>
-      <td>1857.0</td>
-      <td>23746</td>
-      <td>15197474</td>
-      <td>12.0</td>
-    </tr>
-    <tr>
-      <td>静态 1:1 (512P+512D)</td>
-      <td>189.0</td>
-      <td>517.1</td>
-      <td>7.4</td>
-      <td>7.8</td>
-      <td>1131.2</td>
-      <td>1462.0</td>
-      <td>28592</td>
-      <td>18298543</td>
-      <td>9.9</td>
-    </tr>
-    <tr>
-      <td>静态 3:1 (768P+256D)</td>
-      <td>186.5</td>
-      <td>348.9</td>
-      <td>9.2</td>
-      <td>9.8</td>
-      <td>1355.8</td>
-      <td>1527.6</td>
-      <td>23842</td>
-      <td>15258601</td>
-      <td>11.9</td>
-    </tr>
-    <tr>
-      <td>动态 (1024 agg)</td>
-      <td>161.0</td>
-      <td>350.7</td>
-      <td>8.3</td>
-      <td>39.1</td>
-      <td>1209.3</td>
-      <td>1391.3</td>
-      <td>26801</td>
-      <td>17152776</td>
-      <td>10.6</td>
-    </tr>
-  </tbody>
-</table>
+| 配置 | TTFT mean | TTFT p99 | ITL mean | ITL p99 | E2E mean | E2E p99 | rps | 总 tok/s | GPU-hours |
+|---|---|---|---|---|---|---|---|---|---|
+| 静态 1:3 (256P+768D) | 528.1 | 1024.7 | 6.6 | 6.6 | 1360.9 | 1857.0 | 23746 | 15197474 | 12.0 |
+| 静态 1:1 (512P+512D) | 189.0 | 517.1 | 7.4 | 7.8 | 1131.2 | 1462.0 | 28592 | 18298543 | 9.9 |
+| 静态 3:1 (768P+256D) | 186.5 | 348.9 | 9.2 | 9.8 | 1355.8 | 1527.6 | 23842 | 15258601 | 11.9 |
+| 动态 (1024 agg) | 161.0 | 350.7 | 8.3 | 39.1 | 1209.3 | 1391.3 | 26801 | 17152776 | 10.6 |
 
 ### 3.2 真实 trace 开环回放
 
@@ -174,80 +54,20 @@
 
 makespan（秒）：
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th>到达强度</th>
-      <th>静态 1:3</th>
-      <th>静态 1:1</th>
-      <th>静态 3:1</th>
-      <th>动态</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>1×</td>
-      <td>183.03</td>
-      <td>182.41</td>
-      <td>182.55</td>
-      <td>181.84</td>
-    </tr>
-    <tr>
-      <td>2×</td>
-      <td>102.01</td>
-      <td>94.27</td>
-      <td>102.40</td>
-      <td>94.18</td>
-    </tr>
-    <tr>
-      <td>4×</td>
-      <td>85.08</td>
-      <td>65.16</td>
-      <td>70.53</td>
-      <td>58.47</td>
-    </tr>
-    <tr>
-      <td>8×</td>
-      <td>86.81</td>
-      <td>62.57</td>
-      <td>74.26</td>
-      <td>47.89</td>
-    </tr>
-  </tbody>
-</table>
+| 到达强度 | 静态 1:3 | 静态 1:1 | 静态 3:1 | 动态 |
+|---|---|---|---|---|
+| 1× | 183.03 | 182.41 | 182.55 | 181.84 |
+| 2× | 102.01 | 94.27 | 102.40 | 94.18 |
+| 4× | 85.08 | 65.16 | 70.53 | 58.47 |
+| 8× | 86.81 | 62.57 | 74.26 | 47.89 |
 
 在 8× 到达强度下，动态调度相对各静态配置的改善：
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th>对比</th>
-      <th>makespan 缩短</th>
-      <th>GPU 时间节省</th>
-      <th>等效利用率提升</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>vs 1:3</td>
-      <td>86.81 → 47.89s</td>
-      <td>44.8%</td>
-      <td>+81.3%</td>
-    </tr>
-    <tr>
-      <td>vs 1:1</td>
-      <td>62.57 → 47.89s</td>
-      <td>23.5%</td>
-      <td>+30.7%</td>
-    </tr>
-    <tr>
-      <td>vs 3:1</td>
-      <td>74.26 → 47.89s</td>
-      <td>35.5%</td>
-      <td>+55.1%</td>
-    </tr>
-  </tbody>
-</table>
+| 对比 | makespan 缩短 | GPU 时间节省 | 等效利用率提升 |
+|---|---|---|---|
+| vs 1:3 | 86.81 → 47.89s | 44.8% | +81.3% |
+| vs 1:1 | 62.57 → 47.89s | 23.5% | +30.7% |
+| vs 3:1 | 74.26 → 47.89s | 35.5% | +55.1% |
 
 轻载条件下各配置差距有限，重载条件下动态调度的优势随到达强度单调上升，且优于该工作负载的最优固定配比。
 
@@ -257,91 +77,21 @@ aggregated 配置为无 KV 传输的理想上界。条件分离保留静态骨�
 
 makespan（秒）：
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th>配置</th>
-      <th>1×</th>
-      <th>2×</th>
-      <th>4×</th>
-      <th>8×</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>static 无 KV</td>
-      <td>183.03</td>
-      <td>102.01</td>
-      <td>85.08</td>
-      <td>86.81</td>
-    </tr>
-    <tr>
-      <td>static 有 KV</td>
-      <td>183.04</td>
-      <td>102.11</td>
-      <td>85.55</td>
-      <td>89.00</td>
-    </tr>
-    <tr>
-      <td>isl_bounding</td>
-      <td>182.55</td>
-      <td>103.58</td>
-      <td>87.92</td>
-      <td>87.39</td>
-    </tr>
-    <tr>
-      <td>prefill_load</td>
-      <td>181.48</td>
-      <td>93.09</td>
-      <td>55.88</td>
-      <td>39.67</td>
-    </tr>
-    <tr>
-      <td>isl_or_load</td>
-      <td>181.48</td>
-      <td>93.06</td>
-      <td>55.43</td>
-      <td>39.10</td>
-    </tr>
-  </tbody>
-</table>
+| 配置 | 1× | 2× | 4× | 8× |
+|---|---|---|---|---|
+| static 无 KV | 183.03 | 102.01 | 85.08 | 86.81 |
+| static 有 KV | 183.04 | 102.11 | 85.55 | 89.00 |
+| isl_bounding | 182.55 | 103.58 | 87.92 | 87.39 |
+| prefill_load | 181.48 | 93.09 | 55.88 | 39.67 |
+| isl_or_load | 181.48 | 93.06 | 55.43 | 39.10 |
 
 bypass 率（以 `prefill_worker_idx is None` 判定）：
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th>策略</th>
-      <th>1×</th>
-      <th>2×</th>
-      <th>4×</th>
-      <th>8×</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>isl_bounding</td>
-      <td>0%</td>
-      <td>0%</td>
-      <td>0%</td>
-      <td>0%</td>
-    </tr>
-    <tr>
-      <td>prefill_load</td>
-      <td>88.2%</td>
-      <td>87.2%</td>
-      <td>87.7%</td>
-      <td>90.2%</td>
-    </tr>
-    <tr>
-      <td>isl_or_load</td>
-      <td>88.2%</td>
-      <td>87.3%</td>
-      <td>88.2%</td>
-      <td>88.1%</td>
-    </tr>
-  </tbody>
-</table>
+| 策略 | 1× | 2× | 4× | 8× |
+|---|---|---|---|---|
+| isl_bounding | 0% | 0% | 0% | 0% |
+| prefill_load | 88.2% | 87.2% | 87.7% | 90.2% |
+| isl_or_load | 88.2% | 87.3% | 88.2% | 88.1% |
 
 ## 4 讨论
 
@@ -369,75 +119,26 @@ DynaSim 为纯 CPU 仿真，不依赖 GPU。默认多项式性能模型对 batch
 
 ### 6.2 实验脚本
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th>文件</th>
-      <th>用途</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>run_ablation.py</td>
-      <td>批量执行静态与动态调度各配置</td>
-    </tr>
-    <tr>
-      <td>run_trace_ablation.py</td>
-      <td>真实 trace 开环回放</td>
-    </tr>
-    <tr>
-      <td>run_conditional_disagg_ablation.py</td>
-      <td>条件分离策略消融</td>
-    </tr>
-    <tr>
-      <td>verify_ablation.py</td>
-      <td>可复现性校验</td>
-    </tr>
-    <tr>
-      <td>trace_inspect.py</td>
-      <td>工作负载特征探查</td>
-    </tr>
-    <tr>
-      <td>plot_figures.py</td>
-      <td>结果图表生成</td>
-    </tr>
-  </tbody>
-</table>
+| 文件 | 用途 |
+|---|---|
+| run_ablation.py | 批量执行静态与动态调度各配置 |
+| run_trace_ablation.py | 真实 trace 开环回放 |
+| run_conditional_disagg_ablation.py | 条件分离策略消融 |
+| verify_ablation.py | 可复现性校验 |
+| trace_inspect.py | 工作负载特征探查 |
+| plot_figures.py | 结果图表生成 |
 
 ## 7 源码改动
 
 条件分离的离线回放支持仅涉及仿真引擎 `lib/mocker`，未改动生产运行时。
 
-<table width="100%">
-  <thead>
-    <tr>
-      <th>文件</th>
-      <th>改动</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>lib/mocker/src/replay/offline/components/engine.rs</td>
-      <td>暴露 prefill 池饱和信号</td>
-    </tr>
-    <tr>
-      <td>lib/mocker/src/replay/offline/state.rs</td>
-      <td>增加 bypass 状态标记</td>
-    </tr>
-    <tr>
-      <td>lib/mocker/src/replay/offline/disagg.rs</td>
-      <td>条件分离决策与本地 prefill 路由</td>
-    </tr>
-    <tr>
-      <td>lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs</td>
-      <td>回放配置派生与接线</td>
-    </tr>
-    <tr>
-      <td>lib/mocker/src/replay/offline/extensions/kv_events/mod.rs</td>
-      <td>保持默认禁用</td>
-    </tr>
-  </tbody>
-</table>
+| 文件 | 改动 |
+|---|---|
+| lib/mocker/src/replay/offline/components/engine.rs | 暴露 prefill 池饱和信号 |
+| lib/mocker/src/replay/offline/state.rs | 增加 bypass 状态标记 |
+| lib/mocker/src/replay/offline/disagg.rs | 条件分离决策与本地 prefill 路由 |
+| lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs | 回放配置派生与接线 |
+| lib/mocker/src/replay/offline/extensions/kv_events/mod.rs | 保持默认禁用 |
 
 策略判定 bypass 时，请求不再执行「prefill 节点计算 → 跨节点 KV 传输 → decode 节点接续」，而是直接在选定 decode 节点本地 prefill，零 KV 传输。
 
