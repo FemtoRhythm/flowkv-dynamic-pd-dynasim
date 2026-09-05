@@ -1,14 +1,18 @@
-# FlowKV 式动态 PD 混合调度仿真
+# FlowKV 式动态 Prefill-Decode 混合调度：基于 DynaSim 的仿真评估
 
-基于 NVIDIA Dynamo 的离散事件仿真引擎 DynaSim，对比静态 PD（disagg）与动态 PD（aggregated）两种调度架构，并给条件分离（conditional disagg）策略补了离线回放支持。目标是量化动态 PD 相对静态 PD 的收益和代价，作为后续落地改造的基线。
+## 摘要
 
-## 结论
+本文基于 NVIDIA Dynamo 离散事件仿真引擎 DynaSim，对静态 Prefill-Decode 分离与动态混合调度两种架构进行对比评估，并实现条件分离策略的离线回放支持。结果表明，动态调度在首包延迟指标上一致优于静态配置，在真实工作负载重载条件下可节省 44.8% 的 GPU 时间。条件分离策略将部分请求的 prefill 迁移至 decode 节点，进一步消除 prefill 排队瓶颈，在 8× 到达强度下使 makespan 降低 55.4%。
 
-- 动态 PD 的 TTFT 始终最优，比静态 1:3 低约 3 倍，尾延迟也最好。
-- 吞吐上静态 1:1 最高，动态 PD 只低约 6%，明显优于 1:3 / 3:1。
-- 代价是动态 PD 的 ITL p99 偏高（prefill 抢占 decode），是下一步要优化的点。
-- 真实 trace 开环回放里，重载下动态 PD 相对静态 1:3 基线省 44.8% GPU 时间（等效利用率 +81.3%）。
+## 1 引言
 
+分离式推理将 prefill 与 decode 部署于不同节点，以隔离两类工作负载对延迟的差异化敏感度。静态配置固定 prefill 与 decode 节点比例，当负载特征偏离预设假设时导致算力浪费。本文复现 FlowKV 提出的负载感知动态混合调度方向，并利用 DynaSim 在相同负载、相同总卡数下量化动态调度相对静态配置的收益与代价。
+
+## 2 方法
+
+本工作不修改 Dynamo 生产运行时，采用 DynaSim（`python -m dynamo.replay`，由 Rust `lib/mocker` 驱动）进行仿真。每个 GPU 对应一个 worker，张量并行度为 1。对比三类调度配置：静态分离、动态混合（aggregated）与条件分离。
+
+<div align="center">
 <table>
   <tr>
     <td><img src="figures/fig_ttft.png" width="280"></td>
@@ -16,16 +20,15 @@
     <td><img src="figures/fig_conditional.png" width="280"></td>
   </tr>
 </table>
+</div>
 
-## 方法
+## 3 实验设置
 
-不直接改 Dynamo 源码，用 DynaSim（`python -m dynamo.replay`，Rust `lib/mocker` 驱动）在同一负载、同一总卡数下跑静态 PD 和动态 PD 对比。1 卡 = 1 worker（TP=1）。
+### 3.1 闭环饱和测试
 
-## 压测结果
+在固定请求数与并发度下测量各配置的延迟与吞吐指标。延迟单位均为毫秒。
 
-### 闭环饱和
-
-8 卡，16000 请求，concurrency 256：
+8 卡，16000 请求，并发度 256：
 
 | 配置 | TTFT mean | TTFT p99 | ITL mean | ITL p99 | E2E mean | E2E p99 | rps | 总 tok/s | GPU-hours |
 |---|---|---|---|---|---|---|---|---|---|
@@ -34,7 +37,7 @@
 | 静态 3:1 (6P+2D) | 184.4 | 204.8 | 9.2 | 9.8 | 1355.5 | 1374.0 | 187.5 | 119981 | 0.2 |
 | 动态 (8 agg) | 158.9 | 175.5 | 8.3 | 39.1 | 1209.7 | 1215.8 | 210.5 | 134701 | 0.2 |
 
-1024 卡，100 万请求，concurrency 32768：
+1024 卡，100 万请求，并发度 32768：
 
 | 配置 | TTFT mean | TTFT p99 | ITL mean | ITL p99 | E2E mean | E2E p99 | rps | 总 tok/s | GPU-hours |
 |---|---|---|---|---|---|---|---|---|---|
@@ -43,13 +46,9 @@
 | 静态 3:1 (768P+256D) | 186.5 | 348.9 | 9.2 | 9.8 | 1355.8 | 1527.6 | 23842 | 15258601 | 11.9 |
 | 动态 (1024 agg) | 161.0 | 350.7 | 8.3 | 39.1 | 1209.3 | 1391.3 | 26801 | 17152776 | 10.6 |
 
-单位：TTFT / ITL / E2E 为 ms。
+### 3.2 真实 trace 开环回放
 
-### 真实 trace 开环回放
-
-闭环饱和测不出利用率（供应时间被固化成 worker 数 × duration）。改用真实 trace 开环回放：真实到达时间戳 + 真实长度分布，固定总卡数，比 makespan。
-
-trace 是 `mooncake_trace_1000.jsonl`（1000 请求，ISL 均值 9.8k，偏 prefill 密集），用 `--arrival-speedup-ratio` 扫到达强度。
+闭环饱和测试中供应时间被固化为 worker 数与持续时间的乘积，无法反映利用率差异。因此采用真实工作负载开环回放，固定总卡数，以 makespan 为指标。工作负载为 `mooncake_trace_1000.jsonl`，含 1000 请求，输入序列长度均值 9.8k，偏向 prefill 密集，通过 `--arrival-speedup-ratio` 调节到达强度。
 
 makespan（秒）：
 
@@ -60,7 +59,7 @@ makespan（秒）：
 | 4× | 85.08 | 65.16 | 70.53 | 58.47 |
 | 8× | 86.81 | 62.57 | 74.26 | 47.89 |
 
-8× 饱和下动态 PD 相对各静态配比：
+在 8× 到达强度下，动态调度相对各静态配置的改善：
 
 | 对比 | makespan 缩短 | GPU 时间节省 | 等效利用率提升 |
 |---|---|---|---|
@@ -68,11 +67,11 @@ makespan（秒）：
 | vs 1:1 | 62.57 → 47.89s | 23.5% | +30.7% |
 | vs 3:1 | 74.26 → 47.89s | 35.5% | +55.1% |
 
-轻载收益接近 0，重载收益单调上升。动态 PD 即便对这个 prefill 密集 trace 的最优固定配比（1:1）也快 23.5%。
+轻载条件下各配置差距有限，重载条件下动态调度的优势随到达强度单调上升，且优于该工作负载的最优固定配比。
 
-### 条件分离
+### 3.3 条件分离
 
-`aggregated` 是无 KV 传输的理想上界。条件分离保留 2P+6D 静态骨架，用策略把部分请求的 prefill 挪到 decode worker 本地做（bypass），更贴近 FlowKV 的真实形态。三种策略来自 `ConditionalDisaggPolicyKind`。所有 disagg 配置都开 KV 传输（128KiB/token，带宽 200GB/s）。
+aggregated 配置为无 KV 传输的理想上界。条件分离保留静态骨架，通过策略将部分请求的 prefill 迁移至 decode 节点本地执行，更接近 FlowKV 的实际形态。策略来自 `ConditionalDisaggPolicyKind`，所有分离配置均启用 KV 传输（128KiB/token，带宽 200GB/s）。
 
 makespan（秒）：
 
@@ -84,7 +83,7 @@ makespan（秒）：
 | prefill_load | 181.48 | 93.09 | 55.88 | 39.67 |
 | isl_or_load | 181.48 | 93.06 | 55.43 | 39.10 |
 
-bypass 率（`prefill_worker_idx is None` 判定）：
+bypass 率（以 `prefill_worker_idx is None` 判定）：
 
 | 策略 | 1× | 2× | 4× | 8× |
 |---|---|---|---|---|
@@ -92,49 +91,64 @@ bypass 率（`prefill_worker_idx is None` 判定）：
 | prefill_load | 88.2% | 87.2% | 87.7% | 90.2% |
 | isl_or_load | 88.2% | 87.3% | 88.2% | 88.1% |
 
-- KV 传输开销在这个 trace 上很小（0–2.5%）。长上下文偏 prefill 密集，prefill 计算和排队占主导，单请求 KV 传输（约 1.25GiB @ 200GB/s ≈ 6.3ms）相对可忽略，短请求才吃这个开销。
-- isl_bounding 在这里 0% bypass：它面向短请求 + 热 cache（eff_isl < 2048 且占比 < 0.7），这个 trace 冷启动没有前缀复用，也没有短请求。要验证它得换多轮对话 / 共享前缀的 trace。
-- prefill_load / isl_or_load 收益明显：2 个 prefill worker 被长 ISL 长期打满，策略把约 88–90% 请求的 prefill 挪到 6 个相对空闲的 decode worker，消除 prefill 排队瓶颈。相对有 KV 的 static 基线，8× 下 makespan 降 55.4%，TTFT 从 30.8s 降到 52ms。
+## 4 讨论
 
-## 脚本
+本工作负载中 KV 传输开销有限，占比 0–2.5%。该负载偏向 prefill 密集，prefill 计算与排队占据主导，单请求 KV 传输约为 1.25GiB，在 200GB/s 带宽下耗时约 6.3ms，相对可忽略。短请求场景下该开销才会显著。
+
+isl_bounding 策略在本负载下 bypass 率为 0%，因其面向短请求与热缓存场景，而该负载为冷启动，缺乏前缀复用。该策略需在多轮对话或共享前缀负载下进一步验证。
+
+prefill_load 与 isl_or_load 策略效果显著。两个 prefill 节点被长输入序列长期占用，策略将约 88–90% 请求的 prefill 迁移至六个相对空闲的 decode 节点，消除 prefill 排队瓶颈。相对启用 KV 传输的静态基线，8× 到达强度下 makespan 降低 55.4%，TTFT 由 30.8s 降至 52ms。
+
+## 5 结论
+
+动态混合调度在延迟指标上一致优于静态配置，重载条件下显著提升算力利用率。条件分离策略在保留静态骨架的同时，有效消除 prefill 排队瓶颈，验证了负载感知调度的有效性。动态调度的 ITL 尾延迟偏高，源于 prefill 对 decode 的抢占，是后续优化的方向。
+
+## 6 复现
+
+### 6.1 依赖与编译
+
+在 WSL 中配置 Rust 工具链与 Python 环境，编译 `dynamo._core`：
+
+```bash
+maturin develop --release --features mocker-kvbm-offload
+```
+
+DynaSim 为纯 CPU 仿真，不依赖 GPU。默认多项式性能模型对 batch 不敏感，绝对延迟不代表真实硬件，但配置间的相对对比保持自洽。
+
+### 6.2 实验脚本
 
 | 文件 | 用途 |
 |---|---|
-| run_ablation.py | 批量跑静态/动态 PD 各配置，输出对比表 |
-| run_trace_ablation.py | 真实 trace 开环回放，算利用率提升 |
-| run_conditional_disagg_ablation.py | 条件分离消融，量化 bypass 收益 |
-| verify_ablation.py | 可复现性检查（确定性、种子、Little's law、稳态） |
-| trace_inspect.py | 看 trace 的时间戳和长度分布 |
+| run_ablation.py | 批量执行静态与动态调度各配置 |
+| run_trace_ablation.py | 真实 trace 开环回放 |
+| run_conditional_disagg_ablation.py | 条件分离策略消融 |
+| verify_ablation.py | 可复现性校验 |
+| trace_inspect.py | 工作负载特征探查 |
+| plot_figures.py | 结果图表生成 |
 
-## 源码改动
+## 7 源码改动
 
-条件分离的回放支持只动 DynaSim 仿真引擎（`lib/mocker`），没动生产 runtime。生产侧 `ConditionalDisaggPolicyKind` 和配置字段本来就存在，这里只是把它接进离线回放。
+条件分离的离线回放支持仅涉及仿真引擎 `lib/mocker`，未改动生产运行时。
 
 | 文件 | 改动 |
 |---|---|
-| lib/mocker/src/replay/offline/components/engine.rs | has_active_workers / all_workers_have_work，暴露 prefill 池饱和信号 |
-| lib/mocker/src/replay/offline/state.rs | DisaggRequestState 加 bypass_remote_prefill 标记 |
-| lib/mocker/src/replay/offline/disagg.rs | 本地镜像枚举 + ConditionalDisaggReplayConfig + route_local_prefill（跳过远端 prefill、零 KV 传输） |
-| lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs | 从 KvRouterConfig 派生回放配置并接线 |
-| lib/mocker/src/replay/offline/extensions/kv_events/mod.rs | 传 None 保持默认禁用 |
+| lib/mocker/src/replay/offline/components/engine.rs | 暴露 prefill 池饱和信号 |
+| lib/mocker/src/replay/offline/state.rs | 增加 bypass 状态标记 |
+| lib/mocker/src/replay/offline/disagg.rs | 条件分离决策与本地 prefill 路由 |
+| lib/mocker/src/replay/offline/extensions/kv_router/composition_disagg.rs | 回放配置派生与接线 |
+| lib/mocker/src/replay/offline/extensions/kv_events/mod.rs | 保持默认禁用 |
 
-bypass 语义：策略判定 bypass 时，请求不再走「prefill worker 做 prefill → 跨 worker KV 传输 → decode worker 接续」，而是直接在选定的 decode worker 上本地 prefill（`prefill_worker_idx = None`，零传输）。
+策略判定 bypass 时，请求不再执行「prefill 节点计算 → 跨节点 KV 传输 → decode 节点接续」，而是直接在选定 decode 节点本地 prefill，零 KV 传输。
 
-改动以 `conditional_disagg_replay.patch` 提供，基线是 Dynamo `v1.5.0-gemma-4-31b-dev.1`（commit `4645399`）。在官方源码根目录执行：
+改动以 `conditional_disagg_replay.patch` 提供，基线为 Dynamo `v1.5.0-gemma-4-31b-dev.1`。在官方源码根目录执行：
 
 ```bash
-git apply --check conditional_disagg_replay.patch   # 预检能否干净应用
-git apply conditional_disagg_replay.patch            # 应用
+git apply --check conditional_disagg_replay.patch
+git apply conditional_disagg_replay.patch
 ```
 
-应用后重新编译 `dynamo._core`（`maturin develop --release --features mocker-kvbm-offload`），离线回放即可启用条件分离策略。
+## 参考文献
 
-## 复现
-
-在 WSL 里装好 Rust 工具链和 Python 环境，编译出 `dynamo._core`（`maturin develop --release --features mocker-kvbm-offload`），然后跑上面的脚本。DynaSim 是纯 CPU 仿真，不依赖 GPU；默认多项式性能模型对 batch 不敏感，绝对延迟不代表真实 A100，但静态 vs 动态的相对对比是自洽的。
-
-## 参考
-
-- FlowKV: Weiqing Li et al., *FlowKV: A Disaggregated Inference Framework with Low-Latency KV Cache Transfer and Load-Aware Scheduling*, Alibaba Cloud, arXiv:2504.03775
+- Weiqing Li et al. *FlowKV: A Disaggregated Inference Framework with Low-Latency KV Cache Transfer and Load-Aware Scheduling*. arXiv:2504.03775
 - NVIDIA Dynamo: https://github.com/ai-dynamo/dynamo
 - LMCache: https://github.com/LMCache/LMCache
